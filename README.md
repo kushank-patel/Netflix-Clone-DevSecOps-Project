@@ -270,40 +270,40 @@ Now, you have installed the Dependency-Check plugin, configured the tool, and ad
 
 ```groovy
 
-pipeline{
+pipeline {
     agent any
-    tools{
+    tools {
         jdk 'jdk17'
         nodejs 'node16'
     }
     environment {
-        SCANNER_HOME=tool 'sonar-scanner'
+        SCANNER_HOME = tool 'sonar-scanner'
     }
     stages {
-        stage('clean workspace'){
-            steps{
+        stage('clean workspace') {
+            steps {
                 cleanWs()
             }
         }
-        stage('Checkout from Git'){
-            steps{
-                git branch: 'main', url: 'https://github.com/kushank-patel/Netflix-Clone-DevSecOps-Project.git'
+        stage('Checkout from Git') {
+            steps {
+                git branch: 'master', url: 'https://github.com/kushank-patel/Netflix-Clone-DevSecOps-Project.git'
             }
         }
-        stage("Sonarqube Analysis "){
-            steps{
+        stage('Sonarqube Analysis') {
+            steps {
                 withSonarQubeEnv('sonar-server') {
                     sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Netflix \
                     -Dsonar.projectKey=Netflix '''
                 }
             }
         }
-        stage("quality gate"){
-           steps {
+        stage('Quality Gate') {
+            steps {
                 script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token' 
+                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
                 }
-            } 
+            }
         }
         stage('Install Dependencies') {
             steps {
@@ -321,29 +321,70 @@ pipeline{
                 sh "trivy fs . > trivyfs.txt"
             }
         }
-        stage("Docker Build & Push"){
-            steps{
-                script{
-                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){   
-                       sh "docker build --build-arg TMDB_V3_API_KEY=<yourapikey> -t netflix ."
-                       sh "docker tag netflix kushank07/netflix:latest "
-                       sh "docker push kushank07/netflix:latest "
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
+                        sh "docker build --build-arg TMDB_V3_API_KEY=5b3d9c94278a9437c88d02bf20b181b8 -t netflix ."
+                        sh "docker tag netflix kushank07/netflix:latest"
+                        sh "docker push kushank07/netflix:latest"
                     }
                 }
             }
         }
-        stage("TRIVY"){
-            steps{
-                sh "trivy image kushank07/netflix:latest > trivyimage.txt" 
+        stage('TRIVY') {
+            steps {
+                sh "trivy image kushank07/netflix:latest > trivyimage.txt"
             }
         }
-        stage('Deploy to container'){
-            steps{
-                sh 'docker run -d --name netflix -p 8081:80 kushank07/netflix:latest'
+        stage('Deploy to Container') {
+            steps {
+                sh 'docker run -d -p 8081:80 kushank07/netflix:latest'
             }
         }
     }
+    post {
+        always {
+            emailext(
+                subject: "Jenkins Pipeline Execution Result: ${currentBuild.fullDisplayName}",
+                body: """
+                <html>
+                    <p>Dear Team,</p>
+                    <p>The pipeline execution for <b>${env.JOB_NAME}</b> has completed with the following details:</p>
+                    <ul>
+                        <li><b>Build Number:</b> ${env.BUILD_NUMBER}</li>
+                        <li><b>Build Status:</b> ${currentBuild.currentResult}</li>
+                        <li><b>Build URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                    </ul>
+                    <p>Thanks,<br>Jenkins</p>
+                </html>
+                """,
+                mimeType: 'text/html',
+                to: '<your email address>'
+            )
+        }
+        failure {
+            emailext(
+                subject: "Jenkins Pipeline Failed: ${currentBuild.fullDisplayName}",
+                body: """
+                <html>
+                    <p>Dear Team,</p>
+                    <p>The pipeline execution for <b>${env.JOB_NAME}</b> has failed. Please review the logs and take necessary actions.</p>
+                    <ul>
+                        <li><b>Build Number:</b> ${env.BUILD_NUMBER}</li>
+                        <li><b>Build Status:</b> ${currentBuild.currentResult}</li>
+                        <li><b>Build URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                    </ul>
+                    <p>Thanks,<br>Jenkins</p>
+                </html>
+                """,
+                mimeType: 'text/html',
+                to: '<your email address>'
+            )
+        }
+    }
 }
+
 
 
 If you get docker login failed errorr
